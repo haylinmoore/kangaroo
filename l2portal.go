@@ -3,10 +3,11 @@ package main
 import (
 	"io"
 	"log"
-	"net"
+	"os/exec"
+	"strings"
 
 	"github.com/gliderlabs/ssh"
-	"github.com/j-keck/arping"
+	"github.com/go-ping/ping"
 )
 
 func main() {
@@ -28,24 +29,40 @@ func main() {
 				return false
 			}
 
-			dstIP := net.ParseIP(dhost)
-			if dstIP == nil {
-				log.Printf("invalid destination IP: %s", dhost)
-				return false
-			}
-
 			onL2 := false
 
-			if dstIP.To4() != nil {
-				if _, _, err := arping.Ping(dstIP); err == nil {
-					onL2 = true
+			pinger, err := ping.NewPinger(dhost)
+			if err != nil {
+				panic(err)
+			}
+			pinger.Count = 1
+			pinger.Timeout = 1
+			err = pinger.Run() // blocks until finished
+			if err != nil {
+				io.WriteString(user_session, "Failed to access host "+dhost+"\n")
+				return false
+			}
+			stats := pinger.Statistics()
+
+			cmd := exec.Command("ip", "neigh")
+			out, err := cmd.Output()
+			if err != nil {
+				panic(err)
+			}
+			log.Println(string(out))
+			log.Println(stats.IPAddr.IP.String())
+			hosts := strings.Split(string(out), "\n")
+			for _, host := range hosts {
+				if strings.Contains(host, stats.IPAddr.IP.String()) {
+					parts := strings.Split(host, " ")
+					if parts[len(parts)-1] == "REACHABLE" || parts[len(parts)-1] == "DELAY" {
+						onL2 = true
+					}
 				}
-			} else {
-				log.Printf("Dest is v6")
 			}
 
 			if onL2 {
-				log.Printf("Accepted forward", dhost, dport)
+				log.Println("Accepted forward", dhost, dport)
 				return true
 			} else {
 				log.Println("Rejected forward: ", dhost, "is not on local L2")

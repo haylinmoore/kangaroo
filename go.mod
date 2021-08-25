@@ -4,5 +4,5 @@ go 1.16
 
 require (
 	github.com/gliderlabs/ssh v0.3.3
-	github.com/j-keck/arping v1.0.2
+	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 )
