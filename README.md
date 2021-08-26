@@ -1,6 +1,9 @@
 # Kangaroo 🦘
 A simple to use SSH Jump bastion. 
 
+## Installation
+Kangaroo can be installed by downloading it from apt and yum repo, more information on those repos is available [https://github.com/hamptonmoore/repo](https://github.com/hamptonmoore/repo)
+
 ## Running
 ```
 kangaroo -c <config>
