@@ -9,12 +9,11 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/gliderlabs/ssh"
-	"github.com/go-ping/ping"
+	"github.com/hamptonmoore/kangaroo/layer2"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -25,38 +24,6 @@ type localForwardChannelData struct {
 
 	OriginAddr string
 	OriginPort uint32
-}
-
-func isIPInL2(ip net.IP) bool {
-	pinger, err := ping.NewPinger(ip.String())
-	if err != nil {
-		// Can't be on same L2 if we can't ping it
-		return false
-	}
-	pinger.Count = 1
-	pinger.Timeout = 1
-	err = pinger.Run() // blocks until finished
-	if err != nil {
-		// Can't be on same L2 if we can't ping it
-		return false
-	}
-	onL2 := false
-	cmd := exec.Command("ip", "neigh")
-	out, err := cmd.Output()
-	if err != nil {
-		panic(err)
-	}
-	hosts := strings.Split(string(out), "\n")
-	for _, host := range hosts {
-		if strings.Contains(host, ip.String()) {
-			parts := strings.Split(host, " ")
-			if parts[len(parts)-1] == "REACHABLE" || parts[len(parts)-1] == "DELAY" {
-				onL2 = true
-			}
-		}
-	}
-
-	return onL2
 }
 
 func IPInPolicy(src net.IP, sets []string) bool {
@@ -100,7 +67,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		srcip = strings.Split(srcip, ":")[0]
 	}
 	action := ""
-	requireSameL2 := false
+	requireSameL2 := ""
 	for name, policy := range Policies {
 		fmt.Println("Checking policy", name, "for", srcip, "->", dhost)
 
@@ -119,16 +86,16 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		if IPInPolicy(net.ParseIP(dhost), policy.Allow) {
 			// Accept it
 			action = "allow"
-			if policy.SameL2 {
-				requireSameL2 = true
+			if policy.SameL2 != "" {
+				requireSameL2 = policy.SameL2
 			}
 			break
 		}
 		if policy.Default != "" {
 			action = strings.ToLower(policy.Default)
 			if action == "allow" {
-				if policy.SameL2 {
-					requireSameL2 = true
+				if policy.SameL2 != "" {
+					requireSameL2 = policy.SameL2
 				}
 			}
 			break
@@ -147,11 +114,24 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 	}
 
 	// Now we have a policy, lets see if we need to check for L2
-	if requireSameL2 {
-		if !isIPInL2(net.ParseIP(dhost)) {
+	switch strings.ToLower(requireSameL2) {
+	case "ttl1":
+		if net.ParseIP(dhost).To4() == nil {
+			// ttl0 check currently doesn't work for IPv6
+			newChan.Reject(gossh.ConnectionFailed, "ttl1 check not supported for IPv6")
+			return
+		}
+		if !layer2.TTL1IPV4(net.ParseIP(dhost)) {
 			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
 			return
 		}
+	case "simple":
+		if !layer2.IPROUTE(net.ParseIP(dhost)) {
+			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
+			return
+		}
+	default:
+		break
 	}
 
 	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
@@ -185,7 +165,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 type IPSets map[string][]string
 
 type Policy struct {
-	SameL2  bool     `json:"samel2"`
+	SameL2  string   `json:"samel2"`
 	Default string   `json:"default"`
 	Allow   []string `json:"allow"`
 	Deny    []string `json:"deny"`
@@ -203,7 +183,6 @@ var compiledIPSets = make(map[string][]net.IPNet)
 var Policies map[string]Policy
 
 func main() {
-
 	var config_file string
 	flag.StringVar(&config_file, "c", "", "SSH config file")
 

@@ -28,7 +28,7 @@ The config is a simple json file that looks like this:
     "Policy": {
         "NetworkAdmins": {
             "Default": "allow",
-            "OnL2": true
+            "OnL2": "simple"
         },
         "All": {
             "Default": "deny",
@@ -41,7 +41,9 @@ This example configuration listens on port 2222 and allows anybody to connect to
 In addition to that, the jump box allows the IPs 192.168.0.2 and 192.168.0.3 to jump to ANY ip address as long as they are on the same L2. 
 
 ## Layer 2
-Currently L2 detection is done by sending out a ping and checking the iproute2 neigh table. Possible improvements could be sending ICMP with a TTL of 1 and just seeing if there is a response, or by spawning the SSH connection with a TTL of 1.
+There are currently 2 options for OnL2. 
+"TTL1" will send out an empty UDP packet destined for the host with a TTL of 1 and only allow access if the IP that responds with an ICMP timeout is the same IP as destined, it is current IPv4 only.
+"Simple" will send out a ICMP ping to the host and then get the iproute2 neigh table to see if the host is an IP neighbor, this works for IPv4 and IPv6.
 
 ## IPSets
 The IPSets are a simple list of IP addresses and CIDR ranges.  
