@@ -99,6 +99,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		srcip = strings.Split(srcip, ":")[0]
 	}
 	action := ""
+	requireSameL2 := false
 	for name, policy := range Policies {
 		fmt.Println("Checking policy", name, "for", srcip, "->", dhost)
 
@@ -116,18 +117,40 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		}
 		if IPInPolicy(net.ParseIP(dhost), policy.Allow) {
 			// Accept it
-			action = "accept"
+			action = "allow"
+			if policy.SameL2 {
+				requireSameL2 = true
+			}
 			break
 		}
 		if policy.Default != "" {
 			action = policy.Default
+			if action == "allow" {
+				if policy.SameL2 {
+					requireSameL2 = true
+				}
+			}
 			break
 		}
+	}
+
+	if action == "" {
+		// No policy applies, so we just drop it
+		newChan.Reject(gossh.ConnectionFailed, "no policy applies to "+srcip+"->"+dhost)
+		return
 	}
 
 	if action == "deny" {
 		newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
 		return
+	}
+
+	// Now we have a policy, lets see if we need to check for L2
+	if requireSameL2 {
+		if !isIPInL2(net.ParseIP(dhost)) {
+			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
+			return
+		}
 	}
 
 	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
@@ -161,7 +184,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 type IPSets map[string][]string
 
 type Policy struct {
-	SameL2  bool     `json:"same_l2"`
+	SameL2  bool     `json:"samel2"`
 	Default string   `json:"default"`
 	Allow   []string `json:"allow"`
 	Deny    []string `json:"deny"`
