@@ -1,4 +1,4 @@
-module hamptonmoore/l2portal
+module github.com/hamptonmoore/kangaroo
 
 go 1.16
 
