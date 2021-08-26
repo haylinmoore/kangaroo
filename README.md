@@ -26,7 +26,8 @@ The config is a simple json file that looks like this:
     },
     "Policy": {
         "NetworkAdmins": {
-            "Default": "allow"
+            "Default": "allow",
+            "OnL2": true
         },
         "All": {
             "Default": "deny",
@@ -36,7 +37,10 @@ The config is a simple json file that looks like this:
 }
 ```
 This example configuration listens on port 2222 and allows anybody to connect to the jump box to access the subnet 192.168.1.0/24.
-In addition to that, the jump box allows the IPs 192.168.0.2 and 192.168.0.3 to jump to ANY ip address.
+In addition to that, the jump box allows the IPs 192.168.0.2 and 192.168.0.3 to jump to ANY ip address as long as they are on the same L2. 
+
+## Layer 2
+Currently L2 detection is done by sending out a ping and checking the iproute2 neigh table. Possible improvements could be sending ICMP with a TTL of 0 and just seeing if there is a response, or by spawning the SSH connection with a TTL of 0.
 
 ## IPSets
 The IPSets are a simple list of IP addresses and CIDR ranges.  
