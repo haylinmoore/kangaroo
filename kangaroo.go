@@ -67,7 +67,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		srcip = strings.Split(srcip, ":")[0]
 	}
 	action := ""
-	requireSameL2 := ""
+	requireSameL2 := false
 	for name, policy := range Policies {
 		fmt.Println("Checking policy", name, "for", srcip, "->", dhost)
 
@@ -86,16 +86,16 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		if IPInPolicy(net.ParseIP(dhost), policy.Allow) {
 			// Accept it
 			action = "allow"
-			if policy.SameL2 != "" {
-				requireSameL2 = policy.SameL2
+			if policy.SameL2 {
+				requireSameL2 = true
 			}
 			break
 		}
 		if policy.Default != "" {
 			action = strings.ToLower(policy.Default)
 			if action == "allow" {
-				if policy.SameL2 != "" {
-					requireSameL2 = policy.SameL2
+				if policy.SameL2 {
+					requireSameL2 = true
 				}
 			}
 			break
@@ -114,24 +114,11 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 	}
 
 	// Now we have a policy, lets see if we need to check for L2
-	switch strings.ToLower(requireSameL2) {
-	case "ttl1":
-		if net.ParseIP(dhost).To4() == nil {
-			// ttl0 check currently doesn't work for IPv6
-			newChan.Reject(gossh.ConnectionFailed, "ttl1 check not supported for IPv6")
-			return
-		}
-		if !layer2.TTL1IPV4(net.ParseIP(dhost)) {
+	if requireSameL2 {
+		if !layer2.TTL1(net.ParseIP(dhost)) {
 			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
 			return
 		}
-	case "simple":
-		if !layer2.IPROUTE(net.ParseIP(dhost)) {
-			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
-			return
-		}
-	default:
-		break
 	}
 
 	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
@@ -165,7 +152,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 type IPSets map[string][]string
 
 type Policy struct {
-	SameL2  string   `json:"samel2"`
+	SameL2  bool     `json:"samel2"`
 	Default string   `json:"default"`
 	Allow   []string `json:"allow"`
 	Deny    []string `json:"deny"`
