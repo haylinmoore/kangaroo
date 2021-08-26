@@ -11,9 +11,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gliderlabs/ssh"
-	"github.com/hamptonmoore/kangaroo/layer2"
+	"github.com/hamptonmoore/ping"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -115,7 +116,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 
 	// Now we have a policy, lets see if we need to check for L2
 	if requireSameL2 {
-		if !layer2.TTL1(net.ParseIP(dhost)) {
+		if !TTL1(net.ParseIP(dhost)) {
 			newChan.Reject(gossh.ConnectionFailed, "access to "+dhost+" is not allowed")
 			return
 		}
@@ -260,4 +261,19 @@ func main() {
 	}
 	log.Printf("starting ssh server on %s", server.Addr)
 	log.Fatal(server.ListenAndServe())
+}
+
+func TTL1(dst net.IP) bool {
+	pinger, err := ping.NewPinger(dst.String())
+	if err != nil {
+		fmt.Printf("ERROR: %s\n", err.Error())
+		return false
+	}
+	pinger.Timeout = time.Second
+	pinger.Count = 1
+	pinger.TTL = 1
+	pinger.Run()
+
+	return pinger.Statistics().PacketsRecv != 0
+
 }
