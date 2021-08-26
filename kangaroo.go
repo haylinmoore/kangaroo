@@ -161,10 +161,10 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 type IPSets map[string][]string
 
 type Policy struct {
-	L2Addr  bool
-	Default string
-	Allow   []string // ipset names
-	Deny    []string // ipset names
+	SameL2  bool     `json:"same_l2"`
+	Default string   `json:"default"`
+	Allow   []string `json:"allow"`
+	Deny    []string `json:"deny"`
 }
 
 type Config struct {
