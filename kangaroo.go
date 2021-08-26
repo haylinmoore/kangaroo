@@ -124,7 +124,7 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 			break
 		}
 		if policy.Default != "" {
-			action = policy.Default
+			action = strings.ToLower(policy.Default)
 			if action == "allow" {
 				if policy.SameL2 {
 					requireSameL2 = true
