@@ -1,0 +1,48 @@
+before:
+  hooks:
+    - go generate
+    - go mod download
+
+builds:
+  - id: kangaroo
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+      - mips64
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+nfpms:
+  - id: kangaroo
+    package_name: kangaroo
+    file_name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    vendor: Hampton Moore
+    homepage: https://github.com/hamptonmoore/kangaroo
+    maintainer: Hampton Moore <me@hampton.pw>
+    description: A simple to use SSH Jump bastion. 
+    license: GNU GPL-3.0
+    section: utils
+    priority: extra
+    builds:
+      - kangaroo
+
+    formats:
+      - deb
+      - rpm
+
+publishers:
+  - name: fury.io
+    ids:
+      - kangaroo
+    dir: "{{ dir .ArtifactPath }}"
+    cmd: curl -s -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/hamptonmoore/

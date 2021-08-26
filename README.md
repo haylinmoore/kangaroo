@@ -1,6 +1,11 @@
 # Kangaroo 🦘
 A simple to use SSH Jump bastion. 
 
+## Running
+```
+kangaroo -c <config>
+```
+
 ## Config
 The config is a simple json file that looks like this:
 ```json
