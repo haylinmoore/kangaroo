@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -194,6 +195,7 @@ type Config struct {
 	Addr   string            `json:"addr"`
 	Port   int               `json:"port"`
 	Sets   IPSets            `json:"IPSet"`
+	SSHKey string            `json:"sshkey"`
 	Policy map[string]Policy `json:"Policy"`
 }
 
@@ -260,8 +262,32 @@ func main() {
 		fmt.Printf("%s: %v\n", name, compiledIPSet)
 	}
 
+	// Load SSH key
+	if config.SSHKey == "" {
+		log.Fatal("SSH key not specified")
+	}
+	if strings.HasPrefix(config.SSHKey, "~") {
+		config.SSHKey = os.Getenv("HOME") + config.SSHKey[1:]
+	}
+	var bytes []byte
+	if strings.HasPrefix(config.SSHKey, "raw:") {
+		bytes = []byte(config.SSHKey[4:])
+	} else {
+		var err error
+		bytes, err = ioutil.ReadFile(config.SSHKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	signer, err := gossh.ParsePrivateKey(bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	server := ssh.Server{
-		Addr: fmt.Sprintf("%s:%d", config.Addr, config.Port),
+		Addr:        fmt.Sprintf("%s:%d", config.Addr, config.Port),
+		HostSigners: []ssh.Signer{signer},
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": customDirectHandler,
 		},

@@ -14,6 +14,7 @@ The config is a simple json file that looks like this:
 ```json
 {
     "Port": 2222,
+    "SSHKey": "~/.ssh/id_ed25519",
     "IPSet": {
         "All": ["::/0", "0.0.0.0/0"],
         "AllowAllRanges": [
