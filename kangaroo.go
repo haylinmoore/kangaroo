@@ -109,14 +109,14 @@ func customDirectHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.
 		}
 		fmt.Println("Policy", name, "does apply to", srcip)
 
+		if IPInPolicy(net.ParseIP(dhost), policy.Deny) {
+			// Deny it
+			action = "deny"
+			break
+		}
 		if IPInPolicy(net.ParseIP(dhost), policy.Allow) {
 			// Accept it
 			action = "accept"
-			break
-		}
-		if IPInPolicy(net.ParseIP(dhost), policy.Deny) {
-			// Accept it
-			action = "deny"
 			break
 		}
 		if policy.Default != "" {
