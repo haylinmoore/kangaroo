@@ -160,11 +160,12 @@ type Policy struct {
 }
 
 type Config struct {
-	Addr   string            `json:"addr"`
-	Port   int               `json:"port"`
-	Sets   IPSets            `json:"IPSet"`
-	SSHKey string            `json:"sshkey"`
-	Policy map[string]Policy `json:"Policy"`
+	Addr    string            `json:"addr"`
+	Port    int               `json:"port"`
+	Sets    IPSets            `json:"IPSet"`
+	SSHKey  string            `json:"sshkey"`
+	Message string            `json:"message"`
+	Policy  map[string]Policy `json:"Policy"`
 }
 
 var compiledIPSets = make(map[string][]net.IPNet)
@@ -178,9 +179,10 @@ func main() {
 	default_IPSets := make(IPSets)
 	default_IPSets["All"] = []string{"::/0"}
 	config := Config{
-		Addr: "",
-		Port: 2222,
-		Sets: default_IPSets,
+		Addr:    "",
+		Port:    2222,
+		Sets:    default_IPSets,
+		Message: "------ Kangaroo -----\nYou've attempt to connect directly to a Kangaroo server.\nKangaroo is a module SSH bastion for jumping between hosts.\nProper usage is `ssh -J user@KANGAROO.HOST user@INTENDED.SERVER`\n",
 	}
 
 	if config_file != "" {
@@ -255,8 +257,14 @@ func main() {
 	server := ssh.Server{
 		Addr:        fmt.Sprintf("%s:%d", config.Addr, config.Port),
 		HostSigners: []ssh.Signer{signer},
+		Handler: ssh.Handler(func(s ssh.Session) {
+			io.WriteString(s, config.Message)
+			s.Close()
+			select {}
+		}),
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": customDirectHandler,
+			"session":      ssh.DefaultSessionHandler,
 		},
 	}
 	log.Printf("starting ssh server on %s", server.Addr)
